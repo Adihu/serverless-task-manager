@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serverless Task Manager</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f4f6f8; margin: 0; padding: 2rem; display: flex; justify-content: center; }
+        .card { max-width: 500px; width: 100%; background: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { margin-top: 0; color: #111827; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151; }
+        input { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 0.75rem; background: #2563eb; color: #ffffff; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #1d4ed8; }
+        ul { list-style: none; padding: 0; margin-top: 1.5rem; }
+        li { padding: 0.75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>Task Manager</h1>
+        <form id="task-form">
+            <div class="form-group">
+                <label for="task-title">Task Title</label>
+                <input type="text" id="task-title" placeholder="Enter task..." required />
+            </div>
+            <button type="submit">Add Task</button>
+        </form>
+        <ul id="task-list"></ul>
+    </main>
+
+    <script>
+        // Paste your API Gateway endpoint URL here once you deploy template.yaml
+        const API_URL = "YOUR_API_GATEWAY_ENDPOINT_HERE";
+
+        async function fetchTasks() {
+            try {
+                const res = await fetch(API_URL);
+                const tasks = await res.json();
+                const list = document.getElementById('task-list');
+                list.innerHTML = tasks.map(t => `<li><strong>#${t.id}</strong>: ${t.title}</li>`).join('');
+            } catch (err) {
+                console.error("Failed to load tasks:", err);
+            }
+        }
+
+        document.getElementById('task-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('task-title');
+            const title = input.value.trim();
+            if (!title) return;
+
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: Date.now().toString(), title })
+            });
+
+            input.value = '';
+            fetchTasks();
+        });
+
+        fetchTasks();
+    </script>
+</body>
+</html>

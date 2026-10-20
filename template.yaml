@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless Web Application Project
+
+Resources:
+  TaskTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Tasks
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  TaskApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ServerlessTaskHandler
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      InlineCode: |
+        import json
+        import boto3
+        import os
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table(os.environ.get('TABLE_NAME', 'Tasks'))
+        def lambda_handler(event, context):
+            headers = {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
+            http_method = event.get('httpMethod', '')
+            if http_method == 'OPTIONS':
+                return {'statusCode': 200, 'headers': headers, 'body': json.dumps({'message': 'CORS enabled'})}
+            if http_method == 'POST':
+                try:
+                    body = json.loads(event.get('body', '{}'))
+                    item_id = body.get('id')
+                    title = body.get('title', '').strip()
+                    if not item_id or not title:
+                        return {'statusCode': 400, 'headers': headers, 'body': json.dumps({'error': 'Missing id or title'})}
+                    table.put_item(Item={'id': str(item_id), 'title': title})
+                    return {'statusCode': 201, 'headers': headers, 'body': json.dumps({'message': 'Created', 'id': item_id, 'title': title})}
+                except Exception as e:
+                    return {'statusCode': 500, 'headers': headers, 'body': json.dumps({'error': str(e)})}
+            elif http_method == 'GET':
+                try:
+                    response = table.scan()
+                    return {'statusCode': 200, 'headers': headers, 'body': json.dumps(response.get('Items', []))}
+                except Exception as e:
+                    return {'statusCode': 500, 'headers': headers, 'body': json.dumps({'error': str(e)})}
+            return {'statusCode': 404, 'headers': headers, 'body': json.dumps({'error': 'Not found'})}
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TaskTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TaskTable
+      Events:
+        GetTasks:
+          Type: Api
+          Properties:
+            Path: /tasks
+            Method: get
+        CreateTask:
+          Type: Api
+          Properties:
+            Path: /tasks
+            Method: post
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/tasks"
